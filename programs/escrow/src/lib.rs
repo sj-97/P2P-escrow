@@ -104,7 +104,7 @@ pub mod escrow {
             return Err(error!(EscrowError::AlreadyExecuted));
         }
 
-        let (vault_authority, _vault_authority_bump) =
+        let (vault_authority, vault_authority_bump) =
         Pubkey::find_program_address(&[b"escrow"], ctx.program_id);
 
         if vault_authority != ctx.accounts.vault_authority.key() {
@@ -127,9 +127,11 @@ pub mod escrow {
             authority: ctx.accounts.vault_authority.clone(),
         };
 
+        let auth_seeds = &[&b"escrow"[..], &[vault_authority_bump]];
+
         // transfer tokens from token account of PDA to the token account of caller
         token::transfer(
-            CpiContext::new(ctx.accounts.token_program.clone(), cpi_accounts),
+            CpiContext::new(ctx.accounts.token_program.clone(), cpi_accounts).with_signer(&[&auth_seeds[..]]),
             ctx.accounts.asset.amount,
         )?;
         Ok(())

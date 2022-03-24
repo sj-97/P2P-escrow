@@ -227,6 +227,22 @@ describe('escrow', () => {
     initializerTokenAccountB = await getAccount(provider.connection, initializerTokenAccountB_pub);
     takerTokenAccountB = await getAccount(provider.connection, takerTokenAccountB_pub);
 
+    console.log(initializerTokenAccountA.address.toString());
+    console.log(takerTokenAccountA.address.toString());
+    console.log(initializerTokenAccountB.address.toString());
+    console.log(takerTokenAccountB.address.toString());
+
+    const initAStart = initializerTokenAccountA.amount;
+    const recAStart = takerTokenAccountA.amount;
+    const initBStart = initializerTokenAccountB.amount;
+    const recBStart = takerTokenAccountB.amount;
+    
+    console.log("initial amounts");
+    console.log(initAStart);
+    console.log(recAStart);
+    console.log(initBStart);
+    console.log(recBStart);
+
     await mintTo(
       provider.connection,
       payer,
@@ -243,11 +259,18 @@ describe('escrow', () => {
       mintAuthority,
       takerAmount
     );
+
+    console.log("amounts after minting tokens");
     initializerTokenAccountA = await getAccount(provider.connection, initializerTokenAccountA_pub);
+    takerTokenAccountA = await getAccount(provider.connection, takerTokenAccountA_pub);
+    initializerTokenAccountB = await getAccount(provider.connection, initializerTokenAccountB_pub);
     takerTokenAccountB = await getAccount(provider.connection, takerTokenAccountB_pub);
 
-    console.log(initializerTokenAccountA);
-    console.log(takerTokenAccountB);
+    
+    console.log(initializerTokenAccountA.amount);
+    console.log(takerTokenAccountA.amount);
+    console.log(initializerTokenAccountB.amount);
+    console.log(takerTokenAccountB.amount);
 
     const [vault_account_pda_init, _vault_account_bump_init] = await PublicKey.findProgramAddress(
       [Buffer.from(anchor.utils.bytes.utf8.encode("escrow_token_account")), asset_init.publicKey.toBuffer()],
@@ -268,9 +291,10 @@ describe('escrow', () => {
     );
     vault_authority_pda = _vault_authority_pda;
 
-    console.log(initializerMainAccount.publicKey.toString())
+    // console.log(vault_authority_pda.toString())
 
-    await program.rpc.depositAsset(
+    await provider.connection.confirmTransaction(
+      await program.rpc.depositAsset(
       new anchor.BN(initializerAmount),
       {
       accounts: {
@@ -286,9 +310,10 @@ describe('escrow', () => {
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
       signers: [initializerMainAccount, asset_init]
-    });
+    }));
 
-    await program.rpc.depositAsset(
+    await provider.connection.confirmTransaction(
+      await program.rpc.depositAsset(
       new anchor.BN(takerAmount),
       {
       accounts: {
@@ -304,7 +329,18 @@ describe('escrow', () => {
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
       signers: [takerMainAccount, asset_rec]
-    });
+    }));
+
+    initializerTokenAccountA = await getAccount(provider.connection, initializerTokenAccountA_pub);
+    takerTokenAccountA = await getAccount(provider.connection, takerTokenAccountA_pub);
+    initializerTokenAccountB = await getAccount(provider.connection, initializerTokenAccountB_pub);
+    takerTokenAccountB = await getAccount(provider.connection, takerTokenAccountB_pub);
+
+    console.log("amounts after depositing");
+    console.log(initializerTokenAccountA.amount);
+    console.log(takerTokenAccountA.amount);
+    console.log(initializerTokenAccountB.amount);
+    console.log(takerTokenAccountB.amount);
 
     // const vault_init_info = await getAccount(provider.connection, vault_account_pda_init);
     // const vault_rec_info = await getAccount(provider.connection, vault_account_pda_init);
@@ -314,21 +350,23 @@ describe('escrow', () => {
 
     console.log("trying to swap now...")
 
-    await program.rpc.swap({
+    await provider.connection.confirmTransaction(
+      await program.rpc.swap({
       accounts: {
         asset1: asset_init.publicKey,
         asset2: asset_rec.publicKey,
         contract: escrowAccount.publicKey
       },
       signers: []
-    });
+    }));
 
     console.log("withdrawing amount from initializer user...")
 
     // console.log(asset_rec);
     // console.log(initializerMainAccount);
 
-    await program.rpc.withdrawAsset({
+    await provider.connection.confirmTransaction(
+      await program.rpc.withdrawAsset({
       accounts: {
         asset: asset_rec.publicKey,
         withdrawerAccount: initializerMainAccount.publicKey,
@@ -339,11 +377,12 @@ describe('escrow', () => {
         tokenProgram: TOKEN_PROGRAM_ID
       },
       signers: [initializerMainAccount]
-    });
+    }));
 
     console.log("withdrawing amount from recipient user...")
 
-    await program.rpc.withdrawAsset({
+    await provider.connection.confirmTransaction(
+      await program.rpc.withdrawAsset({
       accounts: {
         asset: asset_init.publicKey,
         withdrawerAccount: takerMainAccount.publicKey,
@@ -354,18 +393,24 @@ describe('escrow', () => {
         tokenProgram: TOKEN_PROGRAM_ID
       },
       signers: [takerMainAccount]
-    });
+    }));
 
     console.log("withdrawing completed");
 
-    let _takerTokenAccountA = await mintA.getAccountInfo(takerTokenAccountA);
-    let _takerTokenAccountB = await mintB.getAccountInfo(takerTokenAccountB);
-    let _initializerTokenAccountA = await mintA.getAccountInfo(initializerTokenAccountA);
-    let _initializerTokenAccountB = await mintB.getAccountInfo(initializerTokenAccountB);
+    initializerTokenAccountA = await getAccount(provider.connection, initializerTokenAccountA_pub);
+    takerTokenAccountA = await getAccount(provider.connection, takerTokenAccountA_pub);
+    initializerTokenAccountB = await getAccount(provider.connection, initializerTokenAccountB_pub);
+    takerTokenAccountB = await getAccount(provider.connection, takerTokenAccountB_pub);
 
-    assert.ok(_takerTokenAccountA.amount.toNumber() == initializerAmount);
-    assert.ok(_initializerTokenAccountA.amount.toNumber() == 0);
-    assert.ok(_initializerTokenAccountB.amount.toNumber() == takerAmount);
-    assert.ok(_takerTokenAccountB.amount.toNumber() == 0);
+    console.log("amounts after withdrawing");
+    console.log(initializerTokenAccountA.amount);
+    console.log(takerTokenAccountA.amount);
+    console.log(initializerTokenAccountB.amount);
+    console.log(takerTokenAccountB.amount);
+
+    assert.ok(Number(initializerTokenAccountA.amount) - Number(initAStart) == 0);
+    assert.ok(Number(takerTokenAccountA.amount) - Number(recAStart) == initializerAmount);
+    assert.ok(Number(initializerTokenAccountB.amount) - Number(initBStart) == takerAmount);
+    assert.ok(Number(takerTokenAccountB.amount) - Number(recBStart) == 0);
   });
 });
