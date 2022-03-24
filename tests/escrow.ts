@@ -40,9 +40,6 @@ describe('escrow', () => {
   const initializerMainAccount = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([112,105,149,104,97,14,239,170,125,158,219,56,180,91,175,45,50,3,106,233,2,113,0,54,209,203,60,178,45,85,225,205,197,218,3,225,128,239,78,240,253,158,188,93,145,211,228,58,163,52,13,148,66,160,219,125,88,12,221,148,176,142,236,76]));
   const takerMainAccount = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([180,130,132,173,18,35,178,133,54,38,105,198,112,191,95,85,137,141,251,122,134,96,91,73,70,197,37,45,192,147,50,143,206,157,174,114,242,122,232,70,85,6,73,117,215,52,221,196,181,15,113,23,19,23,113,22,220,22,2,239,53,240,41,58]));
 
-  const asset_init = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([130,174,176,62,211,128,238,61,162,240,156,95,170,81,90,251,198,149,142,208,236,121,50,203,1,247,7,143,251,136,227,236,4,94,188,85,100,30,115,153,178,211,57,39,93,137,188,101,99,56,150,141,246,26,121,184,195,82,211,145,103,96,251,161]));
-  const asset_rec = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([111,205,241,31,194,100,89,150,182,42,178,48,185,153,242,248,254,16,98,30,178,243,227,191,72,142,97,109,239,201,216,126,105,45,186,237,116,148,128,173,200,97,3,229,240,223,96,77,69,176,72,140,146,35,7,163,141,227,133,142,177,221,171,111]));
-
   // it("Initialize program state", async () => {
   //   // // Airdropping tokens to a payer.
   //   // await provider.connection.confirmTransaction(
@@ -198,6 +195,12 @@ describe('escrow', () => {
 
     //re-init accounts
 
+    // const asset_init = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([130,174,176,62,211,128,238,61,162,240,156,95,170,81,90,251,198,149,142,208,236,121,50,203,1,247,7,143,251,136,227,236,4,94,188,85,100,30,115,153,178,211,57,39,93,137,188,101,99,56,150,141,246,26,121,184,195,82,211,145,103,96,251,161]));
+    // const asset_rec = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([111,205,241,31,194,100,89,150,182,42,178,48,185,153,242,248,254,16,98,30,178,243,227,191,72,142,97,109,239,201,216,126,105,45,186,237,116,148,128,173,200,97,3,229,240,223,96,77,69,176,72,140,146,35,7,163,141,227,133,142,177,221,171,111]));
+
+    const asset_init = anchor.web3.Keypair.generate();
+    const asset_rec = anchor.web3.Keypair.generate();
+
     const mintA_pub = new PublicKey("8vYDtefvLdjnBsumYpPYK1rpey6eoxXu4kKxkeiiLgRf");
     const mintB_pub = new PublicKey("3JoRigCQt3utjanico48ERfqKnFbnWKSqCnTHRvmHoMC");
 
@@ -221,12 +224,27 @@ describe('escrow', () => {
     initializerTokenAccountB = await getAccount(provider.connection, initializerTokenAccountB_pub);
     takerTokenAccountB = await getAccount(provider.connection, takerTokenAccountB_pub);
 
-    const [_vault_account_pda, _vault_account_bump] = await PublicKey.findProgramAddress(
-      [Buffer.from(anchor.utils.bytes.utf8.encode("escrow_token_account"))],
+    await mintTo(
+      provider.connection,
+      payer,
+      mintA.address,
+      initializerTokenAccountA.address,
+      mintAuthority,
+      initializerAmount
+    );
+
+    console.log(initializerTokenAccountA);
+    console.log(takerTokenAccountB);
+
+    const [vault_account_pda_init, _vault_account_bump_init] = await PublicKey.findProgramAddress(
+      [Buffer.from(anchor.utils.bytes.utf8.encode("escrow_token_account")), asset_init.publicKey.toBuffer()],
       program.programId
     );
-    vault_account_pda = _vault_account_pda;
-    vault_account_bump = _vault_account_bump;
+
+    const [vault_account_pda_rec, _vault_account_bump_rec] = await PublicKey.findProgramAddress(
+      [Buffer.from(anchor.utils.bytes.utf8.encode("escrow_token_account")), asset_rec.publicKey.toBuffer()],
+      program.programId
+    );
 
     const [_vault_authority_pda, _vault_authority_bump] = await PublicKey.findProgramAddress(
       [Buffer.from(anchor.utils.bytes.utf8.encode("escrow"))],
@@ -245,7 +263,7 @@ describe('escrow', () => {
         mint: mintA.address,
         depositorAccount: initializerMainAccount.publicKey,
         payerAccount: initializerMainAccount.publicKey,
-        vaultAccount: vault_account_pda,
+        vaultAccount: vault_account_pda_init,
         providerTokenAccount: initializerTokenAccountA.address,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
@@ -263,7 +281,7 @@ describe('escrow', () => {
         mint: mintB.address,
         depositorAccount: takerMainAccount.publicKey,
         payerAccount: payer.publicKey,
-        vaultAccount: vault_account_pda,
+        vaultAccount: vault_account_pda_rec,
         providerTokenAccount: takerTokenAccountB.address,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -288,7 +306,7 @@ describe('escrow', () => {
         withdrawerTokenAccount: initializerTokenAccountB,
         vaultAuthority: vault_authority_pda,
         contract: escrowAccount.publicKey,
-        vaultAccount: vault_account_pda,
+        vaultAccount: vault_account_pda_init,
         tokenProgram: TOKEN_PROGRAM_ID
       },
       signers: [takerMainAccount]
@@ -301,7 +319,7 @@ describe('escrow', () => {
         withdrawerTokenAccount: takerTokenAccountA,
         vaultAuthority: vault_authority_pda,
         contract: escrowAccount.publicKey,
-        vaultAccount: vault_account_pda,
+        vaultAccount: vault_account_pda_rec,
         tokenProgram: TOKEN_PROGRAM_ID
       },
       signers: [takerMainAccount]

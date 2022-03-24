@@ -162,9 +162,10 @@ pub struct DepositAsset<'info> {
     /// CHECK: This is not dangerous because we don't read or write from this account
     pub payer_account: AccountInfo<'info>,
 
-    #[account(init, seeds = [b"escrow_token_account".as_ref()], bump, payer = payer_account, token::mint = mint, token::authority = depositor_account)]
+    #[account(init, seeds = [b"escrow_token_account".as_ref(), asset.key().as_ref()], bump, payer = payer_account, token::mint = mint, token::authority = depositor_account)]
     pub vault_account: Account<'info, TokenAccount>,
 
+    #[account(mut)]
     pub provider_token_account: Account<'info, TokenAccount>,
 
     /// CHECK: This is not dangerous because we don't read or write from this account
