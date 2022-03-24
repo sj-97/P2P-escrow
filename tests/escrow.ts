@@ -201,6 +201,9 @@ describe('escrow', () => {
     const asset_init = anchor.web3.Keypair.generate();
     const asset_rec = anchor.web3.Keypair.generate();
 
+    console.log(asset_init.publicKey.toString());
+    console.log(asset_rec.publicKey.toString());
+
     const mintA_pub = new PublicKey("8vYDtefvLdjnBsumYpPYK1rpey6eoxXu4kKxkeiiLgRf");
     const mintB_pub = new PublicKey("3JoRigCQt3utjanico48ERfqKnFbnWKSqCnTHRvmHoMC");
 
@@ -232,6 +235,16 @@ describe('escrow', () => {
       mintAuthority,
       initializerAmount
     );
+    await mintTo(
+      provider.connection,
+      payer,
+      mintB.address,
+      takerTokenAccountB.address,
+      mintAuthority,
+      takerAmount
+    );
+    initializerTokenAccountA = await getAccount(provider.connection, initializerTokenAccountA_pub);
+    takerTokenAccountB = await getAccount(provider.connection, takerTokenAccountB_pub);
 
     console.log(initializerTokenAccountA);
     console.log(takerTokenAccountB);
@@ -245,6 +258,9 @@ describe('escrow', () => {
       [Buffer.from(anchor.utils.bytes.utf8.encode("escrow_token_account")), asset_rec.publicKey.toBuffer()],
       program.programId
     );
+
+    console.log(vault_account_pda_init.toString());
+    console.log(vault_account_pda_rec.toString());
 
     const [_vault_authority_pda, _vault_authority_bump] = await PublicKey.findProgramAddress(
       [Buffer.from(anchor.utils.bytes.utf8.encode("escrow"))],
@@ -276,19 +292,27 @@ describe('escrow', () => {
       new anchor.BN(takerAmount),
       {
       accounts: {
-        asset: asset_init.publicKey,
+        asset: asset_rec.publicKey,
         contract: escrowAccount.publicKey,
         mint: mintB.address,
         depositorAccount: takerMainAccount.publicKey,
-        payerAccount: payer.publicKey,
+        payerAccount: takerMainAccount.publicKey,
         vaultAccount: vault_account_pda_rec,
         providerTokenAccount: takerTokenAccountB.address,
         tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
+        systemProgram: SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
-      signers: [takerMainAccount]
+      signers: [takerMainAccount, asset_rec]
     });
+
+    // const vault_init_info = await getAccount(provider.connection, vault_account_pda_init);
+    // const vault_rec_info = await getAccount(provider.connection, vault_account_pda_init);
+
+    // console.log(vault_init_info);
+    // console.log(vault_rec_info);
+
+    console.log("trying to swap now...")
 
     await program.rpc.swap({
       accounts: {
@@ -296,14 +320,34 @@ describe('escrow', () => {
         asset2: asset_rec.publicKey,
         contract: escrowAccount.publicKey
       },
-      signers: [takerMainAccount]
+      signers: []
     });
+
+    console.log("withdrawing amount from initializer user...")
+
+    // console.log(asset_rec);
+    // console.log(initializerMainAccount);
+
+    await program.rpc.withdrawAsset({
+      accounts: {
+        asset: asset_rec.publicKey,
+        withdrawerAccount: initializerMainAccount.publicKey,
+        withdrawerTokenAccount: initializerTokenAccountB.address,
+        vaultAuthority: vault_authority_pda,
+        contract: escrowAccount.publicKey,
+        vaultAccount: vault_account_pda_rec,
+        tokenProgram: TOKEN_PROGRAM_ID
+      },
+      signers: [initializerMainAccount]
+    });
+
+    console.log("withdrawing amount from recipient user...")
 
     await program.rpc.withdrawAsset({
       accounts: {
         asset: asset_init.publicKey,
-        withdrawerAccount: initializerMainAccount,
-        withdrawerTokenAccount: initializerTokenAccountB,
+        withdrawerAccount: takerMainAccount.publicKey,
+        withdrawerTokenAccount: takerTokenAccountA.address,
         vaultAuthority: vault_authority_pda,
         contract: escrowAccount.publicKey,
         vaultAccount: vault_account_pda_init,
@@ -312,18 +356,7 @@ describe('escrow', () => {
       signers: [takerMainAccount]
     });
 
-    await program.rpc.withdrawAsset({
-      accounts: {
-        asset: asset_rec.publicKey,
-        withdrawerAccount: takerMainAccount,
-        withdrawerTokenAccount: takerTokenAccountA,
-        vaultAuthority: vault_authority_pda,
-        contract: escrowAccount.publicKey,
-        vaultAccount: vault_account_pda_rec,
-        tokenProgram: TOKEN_PROGRAM_ID
-      },
-      signers: [takerMainAccount]
-    });
+    console.log("withdrawing completed");
 
     let _takerTokenAccountA = await mintA.getAccountInfo(takerTokenAccountA);
     let _takerTokenAccountB = await mintB.getAccountInfo(takerTokenAccountB);

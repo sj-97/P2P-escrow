@@ -24,11 +24,12 @@ pub mod escrow {
     }
 
     pub fn deposit_asset(ctx: Context<DepositAsset>, amount: u64) -> Result<()> {
+        msg!("inside deposit asset");
         let asset = &mut ctx.accounts.asset;
         asset.mint_pubkey = ctx.accounts.provider_token_account.mint;
         asset.amount = amount;
         asset.contract_pubkey = ctx.accounts.contract.key();
-        asset.payer_pubkey = ctx.accounts.provider_token_account.key();
+        asset.payer_pubkey = ctx.accounts.depositor_account.key();
         asset.satisfied = false;
 
         // check constraints
@@ -61,6 +62,8 @@ pub mod escrow {
             Some(vault_authority),
         )?;
 
+        msg!("authority changed");
+
         let cpi_accounts = Transfer {
             from: ctx.accounts
                 .provider_token_account
@@ -75,6 +78,8 @@ pub mod escrow {
             CpiContext::new(ctx.accounts.token_program.clone(), cpi_accounts),
             asset.amount,
         )?;
+
+        msg!("tokens transferred");
 
         Ok(())
     }
@@ -106,7 +111,10 @@ pub mod escrow {
             return Err(error!(EscrowError::InvalidPDA));
         }
 
-        if ctx.accounts.vault_account.key() != ctx.accounts.asset.payer_pubkey {
+        msg!("{:?}", ctx.accounts.withdrawer_account.key());
+        msg!("{:?}", ctx.accounts.asset.payer_pubkey);
+
+        if ctx.accounts.withdrawer_account.key() != ctx.accounts.asset.payer_pubkey {
             return Err(error!(EscrowError::IncorrectUserWithdrawing));
         }
 
@@ -179,7 +187,9 @@ pub struct DepositAsset<'info> {
 pub struct WithdrawAsset<'info> {
     pub asset: Account<'info, Asset>,
     /// CHECK: This is not dangerous because we don't read or write from this account
+    #[account(signer)]
     pub withdrawer_account: AccountInfo<'info>,
+    #[account(mut)]
     pub withdrawer_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
     pub vault_account: Account<'info, TokenAccount>,
