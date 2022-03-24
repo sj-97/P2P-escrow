@@ -17,7 +17,7 @@
 The order for steps 2 & 3 and for steps 5 & 6 is not fixed. That is, any user can deposit/ withdraw first.
 
 ## Architecture
-![alt text](https://github.com/sj-97/P2P-escrow/blob/master/arch1.png?raw=true)
+![alt text](https://github.com/sj-97/P2P-escrow/blob/master/arch2.png?raw=true)
 
 ## Important files 
 - programs/escrow/src/lib.rs
